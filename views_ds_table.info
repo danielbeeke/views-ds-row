@@ -1,0 +1,7 @@
+name = Views Display Suite table
+description = "Use view modes for table rows."
+package = Views
+core = 7.x
+
+dependencies[] = views
+dependencies[] = ds

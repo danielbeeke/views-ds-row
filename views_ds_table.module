@@ -1,0 +1,149 @@
+<?php
+
+/**
+* Implements hook_views_api().
+*/
+function views_ds_table_views_api() {
+  return array(
+    'api' => 3,
+    'template path' => drupal_get_path('module', 'views_ds_table'),
+  );
+}
+
+/**
+ * Implements hook_ctools_plugin_api().
+ */
+function views_ds_table_ctools_plugin_api($module, $api) {
+  if (($module == 'ds' && $api == 'ds') || ($module == 'ds_extras' && $api == 'ds_extras')) {
+    return array('version' => 1);
+  }
+}
+
+/**
+ * Implementation of hook_preprocess_HOOK().
+ */
+function views_ds_table_preprocess_views_ds_table(&$variables) {
+  $entity_type = $variables['view']->base_table;
+  if (substr($entity_type, 0, 3) == 'eck') { $entity_type = substr($entity_type, 4); }
+
+  $current_display = $variables['view']->current_display;
+
+  $view_mode = $variables['view']->style_plugin->row_plugin->options['view_mode'];
+
+  foreach ($variables['view']->query->where as $where_group) {
+    foreach ($where_group['conditions'] as $condition) {
+      if (isset($condition['field']) && $condition['field'] ==  $variables['view']->base_table . '.type') {
+        foreach ($condition['value'] as $entity_bundle) {
+          $bundle = $entity_bundle;
+        }
+      }
+    }
+  }
+
+  $layout = ds_get_layout($entity_type, $bundle, $view_mode);
+
+  $fields = array_keys($layout['settings']['fields']);
+  $ds_field_settings = ds_get_field_settings($entity_type, $bundle, $view_mode);
+  $extra_fields = field_info_extra_fields($entity_type, $bundle, 'display');
+
+  $ds_fields = ds_get_fields($entity_type);
+
+  $output = '';
+  foreach ($fields as $field) {
+    $label = $field;
+
+      if (isset($ds_field_settings[$field]['label']) && $ds_field_settings[$field]['label'] == 'hidden') {
+        $label = '';
+      }
+      else {
+        // Display suite custom label.
+        if (isset($ds_field_settings[$field]['formatter_settings']['ft']['lb'])) {
+          $label = $ds_field_settings[$field]['formatter_settings']['ft']['lb'];
+        }
+
+      // Field instance label or extra field label.
+      else {
+        $field_instance_info = field_info_instance($entity_type, $field, $bundle);
+
+        if (isset($field_instance_info['label'])) {
+          $label = $field_instance_info['label'];
+        }
+        // hook_field extra fields.
+        else if (isset($extra_fields[$field]['label'])) {
+          $label = $extra_fields[$field]['label'];
+        } 
+        // Ds extra fields.
+        else if (isset($ds_fields[$field]['title'])) {
+          $label = $ds_fields[$field]['title'];
+        }
+      }
+
+    }
+
+    $variables['table_headers'][] = $label;
+  }
+}
+
+/**
+ * Implementation of hook_entity_view_alter().
+ */
+function views_ds_table_entity_view_alter(&$build, $type) {
+  $entity_info = entity_get_info($type);
+  $bundle = $build['#bundle'];
+  $view_mode = $build['#view_mode'];
+
+  if (isset($build['#entity'])) {
+    $entity = $build['#entity']; 
+  }
+  else if (isset($build['#node'])) {
+    $entity = $build['#node']; 
+  }
+
+
+  $layout = ds_get_layout($type, $bundle, $view_mode);
+
+  if ($layout['layout'] == 'views_ds_table_row') {
+    $bundle_key = $entity_info['entity keys']['bundle'];
+
+    $bundle = $entity->{$bundle_key};
+    $layout = ds_get_layout($type, $bundle, $build['#view_mode']);
+
+    $fields = array_keys($layout['settings']['fields']);
+
+    foreach ($fields as $key) {
+      if (isset($build[$key])) {
+        $build[$key]['#prefix'] = '<td>';
+        $build[$key]['#suffix'] = '</td>';
+        $build[$key]['#label_display'] = 'hidden';
+      }
+      else {
+        $build[$key]['#prefix'] = '<td>';
+        $build[$key]['#suffix'] = '</td>';
+        $build[$key]['#label_display'] = 'hidden';
+      }
+    }
+  }
+}
+
+/**
+ * Define layouts from code.
+ *
+ * @return $layouts
+ *   A collection of layouts.
+ */
+function views_ds_table_ds_layout_info() {
+  $path = drupal_get_path('module', 'views_ds_table');
+
+  $layouts = array(
+    'views_ds_table_row' => array(
+      'label' => t('Row'),
+      'path' => $path . '/ds_layouts/views_ds_table_row',
+      'regions' => array(
+        'row_data' => t('Content'),
+      ),
+      'form' => TRUE,
+    ),
+  );
+
+  return $layouts;
+}
